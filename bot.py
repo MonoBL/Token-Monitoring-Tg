@@ -5,7 +5,7 @@ from solders.pubkey import Pubkey
 from solders.signature import Signature
 import aiohttp
 import logging
-from datetime import datetime
+from datetime import datetime, time as datetime_time
 import time
 
 # Configure logging
@@ -267,6 +267,10 @@ class TokenMonitorPolling:
         
         logger.info(f"🔥 Now monitoring for new transactions (polling every {POLL_INTERVAL}s)...")
         
+        # Track last sent time for morning/night messages
+        last_morning_message = None
+        last_night_message = None
+        
         check_count = 0
         consecutive_errors = 0
         backoff_delay = POLL_INTERVAL
@@ -277,6 +281,38 @@ class TokenMonitorPolling:
                 check_count += 1
                 if check_count % 30 == 0:  # Log every minute
                     logger.info(f"💓 Heartbeat: Checked {check_count} times, monitoring active...")
+                
+                # Check for scheduled messages (morning at 8 AM, night at 8 PM)
+                current_time = datetime.now().time()
+                current_date = datetime.now().date()
+                
+                # Morning message (8:00 AM - 8:59 AM)
+                if (datetime_time(8, 0) <= current_time < datetime_time(9, 0) and 
+                    (last_morning_message is None or last_morning_message != current_date)):
+                    await self.send_telegram_message(
+                        f"🌅 <b>Good Morning!</b>\n\n"
+                        f"✅ Bot is <b>ONLINE</b> and monitoring\n"
+                        f"🎯 Token: <code>{self.token_address[:8]}...{self.token_address[-8:]}</code>\n"
+                        f"💼 Wallet: <code>{self.wallet_address[:8]}...{self.wallet_address[-8:]}</code>\n"
+                        f"🕐 Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                        f"⚡ Status: Active and monitoring for transactions"
+                    )
+                    last_morning_message = current_date
+                    logger.info("☀️ Sent morning check-in message")
+                
+                # Night message (8:00 PM - 8:59 PM)
+                if (datetime_time(20, 0) <= current_time < datetime_time(21, 0) and 
+                    (last_night_message is None or last_night_message != current_date)):
+                    await self.send_telegram_message(
+                        f"🌙 <b>Good Night!</b>\n\n"
+                        f"✅ Bot is <b>ONLINE</b> and monitoring\n"
+                        f"🎯 Token: <code>{self.token_address[:8]}...{self.token_address[-8:]}</code>\n"
+                        f"💼 Wallet: <code>{self.wallet_address[:8]}...{self.wallet_address[-8:]}</code>\n"
+                        f"🕐 Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                        f"⚡ Status: Active and monitoring for transactions"
+                    )
+                    last_night_message = current_date
+                    logger.info("🌙 Sent night check-in message")
                 
                 # Get recent signatures with error tracking
                 recent_sigs = await self.get_recent_signatures(token_account, limit=10)
